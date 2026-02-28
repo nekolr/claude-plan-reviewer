@@ -242,8 +242,8 @@ if (isMain) {
       findLatestPlan,
       buildPrompt,
       getAdapter,
+      stdout: process.stdout,
       stderr: process.stderr,
-      exit: process.exit,
     },
   };
 

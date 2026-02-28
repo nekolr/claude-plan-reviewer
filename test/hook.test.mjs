@@ -3,18 +3,17 @@
  *
  * Coverage:
  * - processHook is an exported async function
- * - Exits 0 when permission_mode is not "plan"
- * - Exits 0 when permission_mode is missing
+ * - Returns silently when permission_mode is not "plan" (allows stop)
+ * - Returns silently when permission_mode is missing
  * - Calls cleanStaleSessions on every invocation with plan mode
- * - Exits 0 when review count >= maxReviews
- * - Exits 0 when no plan file found (findLatestPlan returns null)
+ * - Returns silently when review count >= maxReviews
+ * - Returns silently when no plan file found
  * - Calls buildPrompt with plan content and config prompt
  * - Calls getAdapter with config.adapter name
  * - Calls adapter.review with built prompt and adapter options
  * - Increments review count after successful review
- * - Writes review result to stderr
- * - Exits 2 after successful review (blocks Claude's stop)
- * - Exits 0 on adapter error (does not block Claude)
+ * - Outputs {"decision":"block","reason":"..."} to stdout on success
+ * - Returns silently on adapter error (allows stop)
  * - Writes error message to stderr on adapter error
  */
 
@@ -25,11 +24,11 @@ import { processHook } from '../src/hook.mjs';
 
 /**
  * Creates a deps object with sensible defaults and optional overrides.
- * Also exposes stderrChunks and exitCalls arrays for assertions.
+ * Exposes stdoutChunks, stderrChunks for assertions.
  */
 function createDeps(overrides = {}) {
+  const stdoutChunks = [];
   const stderrChunks = [];
-  const exitCalls = [];
   return {
     loadConfig: () => ({
       adapter: 'codex',
@@ -43,10 +42,10 @@ function createDeps(overrides = {}) {
     findLatestPlan: () => ({ path: '/tmp/plan.md', content: '# Plan\nDo stuff' }),
     buildPrompt: (content, custom) => `Review: ${content}`,
     getAdapter: () => ({ review: async () => 'LGTM' }),
+    stdout: { write: (data) => stdoutChunks.push(data) },
     stderr: { write: (data) => stderrChunks.push(data) },
-    exit: (code) => exitCalls.push(code),
+    stdoutChunks,
     stderrChunks,
-    exitCalls,
     ...overrides,
   };
 }
@@ -54,7 +53,6 @@ function createDeps(overrides = {}) {
 describe('processHook', () => {
   it('is an exported async function', () => {
     assert.equal(typeof processHook, 'function');
-    // Async functions have AsyncFunction constructor
     const AsyncFunction = (async () => {}).constructor;
     assert.ok(
       processHook instanceof AsyncFunction,
@@ -62,18 +60,18 @@ describe('processHook', () => {
     );
   });
 
-  it('exits 0 when permission_mode is not "plan"', async () => {
+  it('produces no stdout when permission_mode is not "plan"', async () => {
     const deps = createDeps();
     await processHook({ session_id: 'abc-123', permission_mode: 'auto' }, deps);
 
-    assert.deepEqual(deps.exitCalls, [0]);
+    assert.deepEqual(deps.stdoutChunks, []);
   });
 
-  it('exits 0 when permission_mode is missing', async () => {
+  it('produces no stdout when permission_mode is missing', async () => {
     const deps = createDeps();
     await processHook({ session_id: 'abc-123' }, deps);
 
-    assert.deepEqual(deps.exitCalls, [0]);
+    assert.deepEqual(deps.stdoutChunks, []);
   });
 
   it('calls cleanStaleSessions on every invocation with plan mode', async () => {
@@ -87,24 +85,24 @@ describe('processHook', () => {
     assert.ok(cleanCalled, 'cleanStaleSessions should have been called');
   });
 
-  it('exits 0 when review count >= maxReviews', async () => {
+  it('produces no stdout when review count >= maxReviews', async () => {
     const deps = createDeps({
-      getReviewCount: () => 2, // equals maxReviews of 2
+      getReviewCount: () => 2,
     });
 
     await processHook({ session_id: 'abc-123', permission_mode: 'plan' }, deps);
 
-    assert.deepEqual(deps.exitCalls, [0]);
+    assert.deepEqual(deps.stdoutChunks, []);
   });
 
-  it('exits 0 when no plan file found (findLatestPlan returns null)', async () => {
+  it('produces no stdout when no plan file found', async () => {
     const deps = createDeps({
       findLatestPlan: () => null,
     });
 
     await processHook({ session_id: 'abc-123', permission_mode: 'plan' }, deps);
 
-    assert.deepEqual(deps.exitCalls, [0]);
+    assert.deepEqual(deps.stdoutChunks, []);
   });
 
   it('calls buildPrompt with plan content and config prompt', async () => {
@@ -166,26 +164,18 @@ describe('processHook', () => {
     assert.equal(incrementedSessionId, 'abc-123');
   });
 
-  it('writes review result to stderr', async () => {
+  it('outputs {"decision":"block","reason":"..."} to stdout on success', async () => {
     const deps = createDeps();
 
     await processHook({ session_id: 'abc-123', permission_mode: 'plan' }, deps);
 
-    assert.ok(
-      deps.stderrChunks.includes('LGTM'),
-      `stderr should contain "LGTM", got: ${JSON.stringify(deps.stderrChunks)}`,
-    );
+    const output = deps.stdoutChunks.join('');
+    const parsed = JSON.parse(output.trim());
+    assert.equal(parsed.decision, 'block');
+    assert.equal(parsed.reason, 'LGTM');
   });
 
-  it('exits 2 after successful review (blocks Claude stop)', async () => {
-    const deps = createDeps();
-
-    await processHook({ session_id: 'abc-123', permission_mode: 'plan' }, deps);
-
-    assert.deepEqual(deps.exitCalls, [2]);
-  });
-
-  it('exits 0 on adapter error (does not block Claude)', async () => {
+  it('produces no stdout on adapter error (allows stop)', async () => {
     const deps = createDeps({
       getAdapter: () => ({
         review: async () => { throw new Error('API timeout'); },
@@ -194,7 +184,7 @@ describe('processHook', () => {
 
     await processHook({ session_id: 'abc-123', permission_mode: 'plan' }, deps);
 
-    assert.deepEqual(deps.exitCalls, [0]);
+    assert.deepEqual(deps.stdoutChunks, []);
   });
 
   it('writes error message to stderr on adapter error', async () => {
