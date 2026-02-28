@@ -4,10 +4,10 @@
  * Coverage:
  * - --help / -h writes usage text to stdout
  * - --version / -v writes version string to stdout
- * - install calls registerHook and writes success message
- * - install writes error and exits 1 on registerHook failure
- * - uninstall calls unregisterHook and writes success message
- * - uninstall writes error and exits 1 on failure
+ * - setup calls registerHook and writes success message
+ * - setup writes error and exits 1 on registerHook failure
+ * - teardown calls unregisterHook and writes success message
+ * - teardown writes error and exits 1 on failure
  * - config show writes JSON config to stdout
  * - config set updates config values (top-level, nested, numeric)
  * - config set rejects invalid/unknown keys
@@ -110,9 +110,9 @@ describe("--help / --version", () => {
   });
 });
 
-// ==================== install ====================
+// ==================== setup ====================
 
-describe("install", () => {
+describe("setup", () => {
   it("calls registerHook with settingsPath and hookCommand", async () => {
     let registerArgs = null;
     const deps = createDeps({
@@ -121,7 +121,7 @@ describe("install", () => {
       },
     });
 
-    await main(["install"], deps);
+    await main(["setup"], deps);
 
     assert.notEqual(registerArgs, null, "registerHook should have been called");
     assert.equal(registerArgs.settingsPath, "/tmp/test-settings.json");
@@ -130,11 +130,11 @@ describe("install", () => {
 
   it("writes success message to stdout", async () => {
     const deps = createDeps();
-    await main(["install"], deps);
+    await main(["setup"], deps);
 
     const output = deps.stdoutChunks.join("");
     assert.ok(
-      output.includes("PreToolUse hook installed successfully"),
+      output.includes("PreToolUse hook set up successfully"),
       `stdout should contain success message, got: ${output}`,
     );
     assert.ok(
@@ -151,7 +151,7 @@ describe("install", () => {
       },
     });
 
-    await main(["install"], deps);
+    await main(["setup"], deps);
 
     const errOutput = deps.stderrChunks.join("");
     assert.ok(
@@ -162,9 +162,9 @@ describe("install", () => {
   });
 });
 
-// ==================== uninstall ====================
+// ==================== teardown ====================
 
-describe("uninstall", () => {
+describe("teardown", () => {
   it("calls unregisterHook with settingsPath", async () => {
     let unregisterArg = null;
     const deps = createDeps({
@@ -173,14 +173,14 @@ describe("uninstall", () => {
       },
     });
 
-    await main(["uninstall"], deps);
+    await main(["teardown"], deps);
 
     assert.equal(unregisterArg, "/tmp/test-settings.json");
   });
 
   it("writes success message", async () => {
     const deps = createDeps();
-    await main(["uninstall"], deps);
+    await main(["teardown"], deps);
 
     const output = deps.stdoutChunks.join("");
     assert.ok(
@@ -197,7 +197,7 @@ describe("uninstall", () => {
       },
     });
 
-    await main(["uninstall"], deps);
+    await main(["teardown"], deps);
 
     const errOutput = deps.stderrChunks.join("");
     assert.ok(

@@ -173,7 +173,7 @@ describe("registerHook", () => {
     });
   });
 
-  it("should clean up legacy Stop hook entries during install", () => {
+  it("should clean up legacy Stop hook entries during setup", () => {
     const osascriptHook = { hooks: [{ type: "command", command: "osascript -e 'say done'" }] };
     const legacyCprHook = { hooks: [{ type: "command", command: 'node "/old/claude-plan-reviewer/bin/cli.mjs" hook' }] };
     const existingSettings = {

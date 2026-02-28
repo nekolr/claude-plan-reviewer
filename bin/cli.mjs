@@ -13,7 +13,7 @@ VALID_NESTED_KEYS.gemini = new Set(["model"]);
 export async function main(args, deps) {
   if (args.includes("--help") || args.includes("-h")) {
     deps.stdout.write(
-      "Usage: claude-plan-reviewer <command>\n\nCommands:\n  install           Add PreToolUse hook to Claude Code settings\n  uninstall         Remove PreToolUse hook\n  config show       Show current configuration\n  config set <k> <v> Update a config value\n  review <file>     Manually review a plan file\n  hook              Internal: called by Claude Code PreToolUse hook\n"
+      "Usage: claude-plan-reviewer <command>\n\nCommands:\n  setup             Add PreToolUse hook to Claude Code settings\n  teardown          Remove PreToolUse hook\n  config show       Show current configuration\n  config set <k> <v> Update a config value\n  review <file>     Manually review a plan file\n  hook              Internal: called by Claude Code PreToolUse hook\n"
     );
     return;
   }
@@ -26,24 +26,24 @@ export async function main(args, deps) {
   const command = args[0];
 
   switch (command) {
-    case "install": {
+    case "setup": {
       try {
         deps.registerHook(deps.settingsPath, deps.getHookCommand());
-        deps.stdout.write("PreToolUse hook installed successfully.\n");
+        deps.stdout.write("PreToolUse hook set up successfully.\n");
         deps.stdout.write(`Settings: ${deps.settingsPath}\n`);
       } catch (err) {
-        deps.stderr.write(`Error: Failed to install hook: ${err.message}\n`);
+        deps.stderr.write(`Error: Failed to set up hook: ${err.message}\n`);
         deps.exit(1);
       }
       break;
     }
 
-    case "uninstall": {
+    case "teardown": {
       try {
         deps.unregisterHook(deps.settingsPath);
         deps.stdout.write("PreToolUse hook removed.\n");
       } catch (err) {
-        deps.stderr.write(`Error: Failed to uninstall hook: ${err.message}\n`);
+        deps.stderr.write(`Error: Failed to tear down hook: ${err.message}\n`);
         deps.exit(1);
       }
       break;
@@ -151,7 +151,7 @@ export async function main(args, deps) {
 
     default: {
       deps.stderr.write(
-        "Usage: claude-plan-reviewer <command>\n\nCommands:\n  install           Add PreToolUse hook to Claude Code settings\n  uninstall         Remove PreToolUse hook\n  config show       Show current configuration\n  config set <k> <v> Update a config value\n  review <file>     Manually review a plan file\n  hook              Internal: called by Claude Code PreToolUse hook\n"
+        "Usage: claude-plan-reviewer <command>\n\nCommands:\n  setup             Add PreToolUse hook to Claude Code settings\n  teardown          Remove PreToolUse hook\n  config show       Show current configuration\n  config set <k> <v> Update a config value\n  review <file>     Manually review a plan file\n  hook              Internal: called by Claude Code PreToolUse hook\n"
       );
       deps.exit(1);
       break;

@@ -20,13 +20,23 @@ Claude writes a plan and attempts to stop
 
 ```bash
 npm install -g claude-plan-reviewer
-claude-plan-reviewer install
+```
+
+## Setup
+
+```bash
+claude-plan-reviewer setup
+```
+
+## Teardown
+
+```bash
+claude-plan-reviewer teardown
 ```
 
 ## Uninstall
 
 ```bash
-claude-plan-reviewer uninstall
 npm uninstall -g claude-plan-reviewer
 ```
 
@@ -81,8 +91,8 @@ claude-plan-reviewer config set gemini.model gemini-2.5-pro
 
 | Command | Description |
 |---------|-------------|
-| `install` | Register Stop hook in `~/.claude/settings.json` |
-| `uninstall` | Remove Stop hook |
+| `setup` | Add PreToolUse hook to Claude Code settings |
+| `teardown` | Remove PreToolUse hook |
 | `config show` | Show current configuration |
 | `config set <key> <value>` | Update a config value |
 | `review <file>` | Manually review a plan file (for testing) |
