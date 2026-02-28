@@ -21,8 +21,11 @@
  */
 export async function processHook(input, deps) {
   try {
+    deps.stderr.write(`[cpr] hook called: permission_mode=${input.permission_mode}\n`);
+
     // 1. If not in plan mode, allow Claude to stop
     if (input.permission_mode !== 'plan') {
+      deps.stderr.write(`[cpr] skipped: not plan mode\n`);
       return;
     }
 
@@ -34,13 +37,17 @@ export async function processHook(input, deps) {
 
     // 4. Check review count against maxReviews
     const count = deps.getReviewCount(input.session_id);
+    deps.stderr.write(`[cpr] session=${input.session_id} count=${count}/${config.maxReviews}\n`);
     if (count >= config.maxReviews) {
+      deps.stderr.write(`[cpr] skipped: maxReviews reached\n`);
       return;
     }
 
     // 5. Find latest plan file
     const plan = deps.findLatestPlan();
+    deps.stderr.write(`[cpr] plan=${plan ? plan.path : 'null'}\n`);
     if (plan === null) {
+      deps.stderr.write(`[cpr] skipped: no plan found\n`);
       return;
     }
 
@@ -51,6 +58,7 @@ export async function processHook(input, deps) {
     const adapter = deps.getAdapter(config.adapter);
 
     // 8. Run review
+    deps.stderr.write(`[cpr] reviewing with ${config.adapter}...\n`);
     const result = await adapter.review(prompt, config[config.adapter]);
 
     // 9. Increment review count
@@ -59,8 +67,9 @@ export async function processHook(input, deps) {
     // 10. Output block decision to stdout (Claude Code reads this)
     const output = JSON.stringify({ decision: "block", reason: result });
     deps.stdout.write(output + "\n");
+    deps.stderr.write(`[cpr] review complete, blocking stop\n`);
   } catch (err) {
     // On any error, write to stderr and allow Claude to stop (no stdout = allow)
-    deps.stderr.write(`[claude-plan-reviewer] Error: ${err.message}\n`);
+    deps.stderr.write(`[cpr] ERROR: ${err.message ?? err}\n${err.stack ?? ''}\n`);
   }
 }
