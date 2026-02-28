@@ -1,55 +1,55 @@
 # claude-plan-reviewer
 
-Claude Code の plan mode で作成したプランを、別の AI CLI（Codex, Gemini CLI）に自動レビューさせる npm パッケージ。
+Automatically review Claude Code plans using external AI CLIs (Codex, Gemini CLI). Uses Claude Code's `Stop` hook mechanism to intercept plan completion, send the plan for external review, and inject feedback back into Claude's context.
 
-## 仕組み
+## How It Works
 
 ```
-Claude がプランを書いて停止しようとする
-  → Stop hook 発火 → hook 実行
-  → permission_mode === "plan" を確認
-  → ~/.claude/plans/ から最新プランファイルを取得
-  → Codex / Gemini でレビュー実行
-  → stderr にレビュー結果を出力 + exit 2
-  → Claude が停止をブロックされ、レビュー結果を受け取る
-  → Claude がプランを修正 → 再度停止を試みる
-  → maxReviews に達したら exit 0 → Claude 停止
+Claude writes a plan and attempts to stop
+  → Stop hook fires → hook runs
+  → Checks permission_mode === "plan"
+  → Finds the latest plan file from ~/.claude/plans/
+  → Runs review via Codex / Gemini CLI
+  → Outputs review to stderr + exit 2
+  → Claude is blocked from stopping and receives the review
+  → Claude revises the plan → attempts to stop again
+  → After maxReviews reached → exit 0 → Claude stops
 ```
 
-## インストール
+## Install
 
 ```bash
 npm install -g claude-plan-reviewer
 claude-plan-reviewer install
 ```
 
-## アンインストール
+## Uninstall
 
 ```bash
 claude-plan-reviewer uninstall
 npm uninstall -g claude-plan-reviewer
 ```
 
-## 設定
+## Configuration
 
 ```bash
-# 現在の設定を表示
+# Show current config
 claude-plan-reviewer config show
 
-# アダプタを変更 (codex | gemini)
+# Change adapter (codex | gemini)
 claude-plan-reviewer config set adapter gemini
 
-# 最大レビュー回数を変更
+# Change max reviews per session
 claude-plan-reviewer config set maxReviews 3
 
-# Codex のモデルを指定
+# Set Codex model
 claude-plan-reviewer config set codex.model o3
 
-# Gemini のモデルを指定
+# Set Gemini model
 claude-plan-reviewer config set gemini.model gemini-2.5-pro
 ```
 
-### 設定ファイル
+### Config File
 
 `~/.claude-plan-reviewer.json`
 
@@ -68,45 +68,45 @@ claude-plan-reviewer config set gemini.model gemini-2.5-pro
 }
 ```
 
-| キー | 説明 | デフォルト |
-|------|------|-----------|
-| `adapter` | 使用するレビューア (`codex` or `gemini`) | `codex` |
-| `maxReviews` | セッションあたりの最大レビュー回数 | `2` |
-| `prompt` | レビュー時の追加指示 | `""` |
-| `codex.model` | Codex CLI のモデル | `""` (デフォルト) |
-| `codex.sandbox` | Codex のサンドボックスモード | `read-only` |
-| `gemini.model` | Gemini CLI のモデル | `""` (デフォルト) |
+| Key | Description | Default |
+|-----|-------------|---------|
+| `adapter` | Reviewer to use (`codex` or `gemini`) | `codex` |
+| `maxReviews` | Max reviews per session | `2` |
+| `prompt` | Additional review instructions | `""` |
+| `codex.model` | Codex CLI model | `""` (default) |
+| `codex.sandbox` | Codex sandbox mode | `read-only` |
+| `gemini.model` | Gemini CLI model | `""` (default) |
 
-## CLI コマンド
+## CLI Commands
 
-| コマンド | 説明 |
-|----------|------|
-| `install` | Stop hook を `~/.claude/settings.json` に登録 |
-| `uninstall` | Stop hook を削除 |
-| `config show` | 現在の設定を表示 |
-| `config set <key> <value>` | 設定を変更 |
-| `review <file>` | 手動でプランをレビュー（テスト用） |
-| `hook` | Claude Code から呼ばれる内部コマンド |
+| Command | Description |
+|---------|-------------|
+| `install` | Register Stop hook in `~/.claude/settings.json` |
+| `uninstall` | Remove Stop hook |
+| `config show` | Show current configuration |
+| `config set <key> <value>` | Update a config value |
+| `review <file>` | Manually review a plan file (for testing) |
+| `hook` | Internal command called by Claude Code |
 
-## 手動レビュー（テスト用）
+## Manual Review (Testing)
 
 ```bash
 claude-plan-reviewer review ~/.claude/plans/my-plan.md
 ```
 
-## 前提条件
+## Prerequisites
 
 - Node.js >= 18.0.0
-- レビューアの CLI がインストール済みであること:
+- A reviewer CLI installed:
   - Codex: `npm install -g @openai/codex`
   - Gemini: [Gemini CLI](https://github.com/google-gemini/gemini-cli)
 
-## テスト
+## Test
 
 ```bash
 npm test
 ```
 
-## ライセンス
+## License
 
 MIT
