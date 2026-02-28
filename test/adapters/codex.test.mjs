@@ -8,26 +8,56 @@
  * - Includes --model flag when model option is provided
  * - Uses "read-only" as default sandbox
  * - Uses custom sandbox when provided
- * - Throws on execFile error (e.g., codex not found)
- * - Throws on timeout (signal === 'SIGTERM')
+ * - Throws on spawn error (e.g., codex not found)
+ * - Throws on non-zero exit code with stderr message
+ * - Passes AbortSignal to spawn for timeout support
+ * - Rejects with 'timed out' message on AbortError
  * - Returns empty string when stdout is empty
+ * - Calls onData for each stdout chunk
+ * - Settle guard prevents double resolution when both error and close fire
  */
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { review } from "../../src/adapters/codex.mjs";
 
 /**
- * Creates a mock execFile function that captures calls and returns configurable results.
- * @param {object|Error} result - The result to return, or an Error to throw.
- * @returns {Function & { calls: Array<{ cmd: string, args: string[], options: object }> }}
+ * Creates a mock spawn function that simulates child_process.spawn.
+ * Returns a fake child process with stdin/stdout/stderr streams.
+ *
+ * @param {object} result - The result configuration.
+ * @param {string} [result.stdout="LGTM"] - Data to emit on stdout.
+ * @param {string} [result.stderr=""] - Data to emit on stderr.
+ * @param {number} [result.code=0] - Exit code for the child process.
+ * @param {Error} [result.error] - If set, emit an 'error' event instead of 'close'.
+ * @returns {Function & { calls: Array<{ cmd: string, args: string[], options: object, child: EventEmitter }> }}
  */
-function createMockExecFile(result = { stdout: "LGTM", stderr: "" }) {
+function createMockSpawn(result = { stdout: "LGTM", code: 0 }) {
   const calls = [];
-  const fn = async (cmd, args, options) => {
-    calls.push({ cmd, args, options });
-    if (result instanceof Error) throw result;
-    return result;
+  const fn = (cmd, args, options) => {
+    const child = new EventEmitter();
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = () => {};
+
+    calls.push({ cmd, args, options, child });
+
+    process.nextTick(() => {
+      if (result.error) {
+        child.emit("error", result.error);
+        return;
+      }
+      if (result.stdout) child.stdout.push(result.stdout);
+      child.stdout.push(null);
+      if (result.stderr) child.stderr.push(result.stderr);
+      child.stderr.push(null);
+      child.emit("close", result.code ?? 0);
+    });
+
+    return child;
   };
   fn.calls = calls;
   return fn;
@@ -39,19 +69,19 @@ describe("codex adapter", () => {
   it("review is an exported async function", () => {
     assert.equal(typeof review, "function");
     // AsyncFunction check
-    const result = review("test", {}, { execFile: createMockExecFile() });
+    const result = review("test", {}, { spawn: createMockSpawn() });
     assert.ok(result instanceof Promise, "review should return a Promise");
   });
 
   // ==================== Correct arguments ====================
 
   it("calls codex with correct arguments (exec, prompt, --sandbox, --full-auto)", async () => {
-    const mockExecFile = createMockExecFile({ stdout: "looks good", stderr: "" });
+    const mockSpawn = createMockSpawn({ stdout: "looks good", code: 0 });
 
-    await review("Please review this plan", {}, { execFile: mockExecFile });
+    await review("Please review this plan", {}, { spawn: mockSpawn });
 
-    assert.equal(mockExecFile.calls.length, 1);
-    const { cmd, args } = mockExecFile.calls[0];
+    assert.equal(mockSpawn.calls.length, 1);
+    const { cmd, args } = mockSpawn.calls[0];
     assert.equal(cmd, "codex");
     assert.deepEqual(args, [
       "exec",
@@ -65,23 +95,23 @@ describe("codex adapter", () => {
   // ==================== Returns trimmed stdout ====================
 
   it("returns trimmed stdout from codex", async () => {
-    const mockExecFile = createMockExecFile({
+    const mockSpawn = createMockSpawn({
       stdout: "  LGTM with minor nits  \n",
-      stderr: "",
+      code: 0,
     });
 
-    const result = await review("review this", {}, { execFile: mockExecFile });
+    const result = await review("review this", {}, { spawn: mockSpawn });
     assert.equal(result, "LGTM with minor nits");
   });
 
   // ==================== --model flag ====================
 
   it("includes --model flag when model option is provided", async () => {
-    const mockExecFile = createMockExecFile({ stdout: "ok", stderr: "" });
+    const mockSpawn = createMockSpawn({ stdout: "ok", code: 0 });
 
-    await review("review", { model: "o3" }, { execFile: mockExecFile });
+    await review("review", { model: "o3" }, { spawn: mockSpawn });
 
-    const { args } = mockExecFile.calls[0];
+    const { args } = mockSpawn.calls[0];
     assert.deepEqual(args, [
       "exec",
       "review",
@@ -96,11 +126,11 @@ describe("codex adapter", () => {
   // ==================== Default sandbox ====================
 
   it('uses "read-only" as default sandbox', async () => {
-    const mockExecFile = createMockExecFile({ stdout: "ok", stderr: "" });
+    const mockSpawn = createMockSpawn({ stdout: "ok", code: 0 });
 
-    await review("review", {}, { execFile: mockExecFile });
+    await review("review", {}, { spawn: mockSpawn });
 
-    const { args } = mockExecFile.calls[0];
+    const { args } = mockSpawn.calls[0];
     const sandboxIndex = args.indexOf("--sandbox");
     assert.notEqual(sandboxIndex, -1, "args should contain --sandbox");
     assert.equal(args[sandboxIndex + 1], "read-only");
@@ -109,11 +139,11 @@ describe("codex adapter", () => {
   // ==================== Custom sandbox ====================
 
   it("uses custom sandbox when provided", async () => {
-    const mockExecFile = createMockExecFile({ stdout: "ok", stderr: "" });
+    const mockSpawn = createMockSpawn({ stdout: "ok", code: 0 });
 
-    await review("review", { sandbox: "network" }, { execFile: mockExecFile });
+    await review("review", { sandbox: "network" }, { spawn: mockSpawn });
 
-    const { args } = mockExecFile.calls[0];
+    const { args } = mockSpawn.calls[0];
     const sandboxIndex = args.indexOf("--sandbox");
     assert.notEqual(sandboxIndex, -1, "args should contain --sandbox");
     assert.equal(args[sandboxIndex + 1], "network");
@@ -121,13 +151,13 @@ describe("codex adapter", () => {
 
   // ==================== Error handling ====================
 
-  it("throws on execFile error (e.g., codex not found)", async () => {
-    const error = new Error("spawn codex ENOENT");
-    error.code = "ENOENT";
-    const mockExecFile = createMockExecFile(error);
+  it("throws on spawn error (e.g., codex not found)", async () => {
+    const spawnError = new Error("spawn codex ENOENT");
+    spawnError.code = "ENOENT";
+    const mockSpawn = createMockSpawn({ error: spawnError });
 
     await assert.rejects(
-      () => review("review", {}, { execFile: mockExecFile }),
+      () => review("review", {}, { spawn: mockSpawn }),
       (err) => {
         assert.ok(err instanceof Error);
         assert.ok(
@@ -139,59 +169,137 @@ describe("codex adapter", () => {
     );
   });
 
-  // ==================== Timeout ====================
+  // ==================== Non-zero exit code ====================
 
-  it("throws on timeout (signal === 'SIGTERM')", async () => {
-    const error = new Error("Process timed out");
-    error.signal = "SIGTERM";
-    const mockExecFile = createMockExecFile(error);
+  it("throws on non-zero exit code with stderr message", async () => {
+    const mockSpawn = createMockSpawn({
+      stdout: "",
+      stderr: "Error: model not found",
+      code: 1,
+    });
 
     await assert.rejects(
-      () => review("review", {}, { execFile: mockExecFile }),
+      () => review("review", {}, { spawn: mockSpawn }),
       (err) => {
         assert.ok(err instanceof Error);
         assert.ok(
-          err.message.includes("timed out"),
-          `Error message should include 'timed out', got: ${err.message}`
+          err.message.includes("Codex review failed"),
+          `Error message should include 'Codex review failed', got: ${err.message}`
+        );
+        assert.ok(
+          err.message.includes("Error: model not found"),
+          `Error message should include stderr content, got: ${err.message}`
         );
         return true;
       }
     );
   });
 
-  // ==================== Passes timeout to execFile ====================
+  // ==================== Timeout via AbortController ====================
 
-  it("passes timeout option to execFile", async () => {
-    const mockExecFile = createMockExecFile({ stdout: "ok", stderr: "" });
+  it("passes an AbortSignal to spawn instead of timeout", async () => {
+    const mockSpawn = createMockSpawn({ stdout: "ok", code: 0 });
 
-    await review("review", { timeout: 60000 }, { execFile: mockExecFile });
+    await review("review", { timeout: 60000 }, { spawn: mockSpawn });
 
-    const { options } = mockExecFile.calls[0];
-    assert.equal(options.timeout, 60000);
+    const { options } = mockSpawn.calls[0];
+    assert.ok(
+      options.signal instanceof AbortSignal,
+      "spawn options should contain an AbortSignal"
+    );
+    assert.equal(options.timeout, undefined, "timeout should NOT be passed to spawn");
   });
 
-  it("uses default timeout of 120000 when not specified", async () => {
-    const mockExecFile = createMockExecFile({ stdout: "ok", stderr: "" });
+  it("passes an AbortSignal even when timeout is not specified", async () => {
+    const mockSpawn = createMockSpawn({ stdout: "ok", code: 0 });
 
-    await review("review", {}, { execFile: mockExecFile });
+    await review("review", {}, { spawn: mockSpawn });
 
-    const { options } = mockExecFile.calls[0];
-    assert.equal(options.timeout, 120000);
+    const { options } = mockSpawn.calls[0];
+    assert.ok(
+      options.signal instanceof AbortSignal,
+      "spawn options should contain an AbortSignal"
+    );
+  });
+
+  it("rejects with 'timed out' message when AbortError is emitted", async () => {
+    const abortError = new Error("The operation was aborted");
+    abortError.name = "AbortError";
+    const mockSpawn = createMockSpawn({ error: abortError });
+
+    await assert.rejects(
+      () => review("review", {}, { spawn: mockSpawn }),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.equal(err.message, "Codex review timed out");
+        return true;
+      }
+    );
   });
 
   // ==================== Empty stdout ====================
 
   it("returns empty string when stdout is empty", async () => {
-    const mockExecFile = createMockExecFile({ stdout: "", stderr: "" });
+    const mockSpawn = createMockSpawn({ stdout: "", code: 0 });
 
-    const result = await review("review", {}, { execFile: mockExecFile });
+    const result = await review("review", {}, { spawn: mockSpawn });
     assert.equal(result, "");
   });
 
   it("returns empty string when stdout is only whitespace", async () => {
-    const mockExecFile = createMockExecFile({ stdout: "   \n\n  ", stderr: "" });
+    const mockSpawn = createMockSpawn({ stdout: "   \n\n  ", code: 0 });
 
-    const result = await review("review", {}, { execFile: mockExecFile });
+    const result = await review("review", {}, { spawn: mockSpawn });
     assert.equal(result, "");
+  });
+
+  // ==================== onData callback ====================
+
+  it("calls onData for each stdout chunk", async () => {
+    const mockSpawn = createMockSpawn({ stdout: "review output", code: 0 });
+    const onDataCalls = [];
+    const onData = (data) => onDataCalls.push(data);
+
+    await review("review", {}, { spawn: mockSpawn, onData });
+
+    assert.ok(
+      onDataCalls.length > 0,
+      `onData should have been called at least once, got ${onDataCalls.length} calls`
+    );
+    const combined = onDataCalls.map(String).join("");
+    assert.ok(
+      combined.includes("review output"),
+      `onData calls should contain stdout data, got: ${combined}`
+    );
+  });
+
+  // ==================== Settle guard ====================
+
+  it("does not resolve after an error has already been emitted", async () => {
+    const calls = [];
+    const mockSpawn = (cmd, args, options) => {
+      const child = new EventEmitter();
+      child.stdin = new PassThrough();
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.kill = () => {};
+      calls.push({ cmd, args, options, child });
+      process.nextTick(() => {
+        child.emit("error", new Error("something broke"));
+        child.stdout.push(null);
+        child.stderr.push(null);
+        child.emit("close", 0);
+      });
+      return child;
+    };
+
+    await assert.rejects(
+      () => review("review", {}, { spawn: mockSpawn }),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.ok(err.message.includes("Codex review failed"));
+        return true;
+      }
+    );
   });
 });

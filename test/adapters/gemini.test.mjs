@@ -234,6 +234,28 @@ describe("gemini adapter", () => {
     );
   });
 
+  // ==================== onData callback ====================
+
+  it("calls onData for each stdout chunk", async () => {
+    const mockSpawn = createMockSpawn({ stdout: "review output", code: 0 });
+    const onDataCalls = [];
+    const onData = (data) => onDataCalls.push(data);
+
+    await review("review", {}, { spawn: mockSpawn, onData });
+
+    assert.ok(
+      onDataCalls.length > 0,
+      `onData should have been called at least once, got ${onDataCalls.length} calls`
+    );
+    const combined = onDataCalls.map(String).join("");
+    assert.ok(
+      combined.includes("review output"),
+      `onData calls should contain stdout data, got: ${combined}`
+    );
+  });
+
+  // ==================== Settle guard ====================
+
   it("does not resolve after an error has already been emitted", async () => {
     // Simulate both error and close events firing (settle guard)
     const calls = [];

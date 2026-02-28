@@ -40,7 +40,12 @@ export async function processHook(input, deps) {
     const prompt = deps.buildPrompt(plan.content, config.prompt);
     const adapter = deps.getAdapter(config.adapter);
     deps.stderr.write(`[cpr] reviewing with ${config.adapter}...\n`);
-    const result = await adapter.review(prompt, config[config.adapter]);
+    deps.stderr.write(`\n\x1b[1;36m━━━ Claude Plan Reviewer ━━━ Reviewing with ${config.adapter}... ━━━\x1b[0m\n\n`);
+    const result = await adapter.review(prompt, config[config.adapter], {
+      onData: (chunk) => deps.stderr.write(String(chunk)),
+    });
+
+    deps.stderr.write(`\n\x1b[1;36m━━━ Review complete ━━━\x1b[0m\n\n`);
 
     // 6. Increment review count
     deps.incrementReviewCount(input.session_id);
@@ -50,7 +55,7 @@ export async function processHook(input, deps) {
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: result,
+        permissionDecisionReason: `ExitPlanMode was blocked by claude-plan-reviewer. Revise your plan based on the following review feedback, then call ExitPlanMode again.\n\n${result}`,
       },
     });
     deps.stdout.write(output + "\n");

@@ -1,7 +1,4 @@
-import { execFile as execFileCb } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFileCb);
+import { spawn as defaultSpawn } from "node:child_process";
 
 /**
  * Runs the Codex CLI to review a plan.
@@ -12,10 +9,12 @@ const execFileAsync = promisify(execFileCb);
  * @param {string} [options.sandbox="read-only"] - Codex sandbox mode.
  * @param {number} [options.timeout=120000] - Timeout in ms.
  * @param {object} [deps] - Dependency injection for testing.
- * @param {Function} [deps.execFile] - The execFile function to use.
+ * @param {Function} [deps.spawn] - The spawn function to use.
+ * @param {Function} [deps.onData] - Callback for each stdout chunk (for streaming).
  * @returns {Promise<string>} The review text (trimmed).
  */
-export async function review(prompt, options = {}, deps = { execFile: execFileAsync }) {
+export async function review(prompt, options = {}, deps = {}) {
+  const { spawn = defaultSpawn, onData = () => {} } = deps;
   const { model = "", sandbox = "read-only", timeout = 120000 } = options;
 
   const args = ["exec", prompt, "--sandbox", sandbox, "--full-auto"];
@@ -23,13 +22,49 @@ export async function review(prompt, options = {}, deps = { execFile: execFileAs
     args.push("--model", model);
   }
 
-  try {
-    const { stdout } = await deps.execFile("codex", args, { timeout });
-    return (stdout || "").trim();
-  } catch (err) {
-    if (err.signal === "SIGTERM") {
-      throw new Error("Codex review timed out");
-    }
-    throw new Error(`Codex review failed: ${err.message}`);
-  }
+  return new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    const child = spawn("codex", args, { signal: controller.signal });
+
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const settle = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+
+    child.stdout.on("data", (data) => {
+      stdout += data;
+      onData(data);
+    });
+
+    child.stderr.on("data", (data) => {
+      stderr += data;
+    });
+
+    child.on("close", (code) => {
+      if (code !== 0) {
+        settle(
+          reject,
+          new Error(`Codex review failed (exit ${code ?? "signal"}): ${stderr.trim()}`)
+        );
+        return;
+      }
+      settle(resolve, stdout.trim());
+    });
+
+    child.on("error", (err) => {
+      if (err.name === "AbortError") {
+        settle(reject, new Error("Codex review timed out"));
+        return;
+      }
+      settle(reject, new Error(`Codex review failed: ${err.message}`));
+    });
+  });
 }

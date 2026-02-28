@@ -10,9 +10,9 @@ import { spawn as defaultSpawn } from "node:child_process";
  * @param {object} [deps={ spawn: defaultSpawn }] - Dependency injection for testing.
  * @returns {Promise<string>} The review text (trimmed stdout).
  */
-export async function review(prompt, options = {}, deps = { spawn: defaultSpawn }) {
+export async function review(prompt, options = {}, deps = {}) {
   const { model = "", timeout = 120000 } = options;
-  const { spawn } = deps;
+  const { spawn = defaultSpawn, onData = () => {} } = deps;
 
   const args = [];
   if (model) {
@@ -38,6 +38,7 @@ export async function review(prompt, options = {}, deps = { spawn: defaultSpawn 
 
     child.stdout.on("data", (data) => {
       stdout += data;
+      onData(data);
     });
 
     child.stderr.on("data", (data) => {
@@ -48,7 +49,7 @@ export async function review(prompt, options = {}, deps = { spawn: defaultSpawn 
       if (code !== 0) {
         settle(
           reject,
-          new Error(`Gemini review failed (exit ${code}): ${stderr.trim()}`)
+          new Error(`Gemini review failed (exit ${code ?? "signal"}): ${stderr.trim()}`)
         );
         return;
       }
