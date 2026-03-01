@@ -119,6 +119,18 @@ claude-plan-reviewer review ~/.claude/plans/my-plan.md
 npm test
 ```
 
+## Disclaimer
+
+**Use at your own risk.** This tool automatically sends your Claude Code plans to external AI services (Codex CLI, Gemini CLI) for review. The authors are not responsible for any damages or losses arising from the use of this tool, including but not limited to:
+
+- Unintended plan content being sent to third-party AI services
+- Inaccurate or misleading review feedback leading to flawed implementations
+- Workflow disruption caused by misconfiguration or incompatible Claude Code versions
+
+**Not a substitute for human review.** External AI reviews may miss critical issues or provide incorrect suggestions. Always review plans yourself before proceeding to implementation.
+
+This software is provided "AS IS" without warranty of any kind, as stated in the [MIT License](LICENSE).
+
 ## License
 
 MIT
