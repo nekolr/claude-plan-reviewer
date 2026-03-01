@@ -2,8 +2,8 @@
  * Process a PreToolUse hook invocation from Claude Code.
  *
  * Fires before ExitPlanMode is called. Reviews the plan and either:
+ * - Outputs hookSpecificOutput with permissionDecision:"allow" to allow (with LGTM review)
  * - Outputs hookSpecificOutput with permissionDecision:"deny" to block (with review feedback)
- * - Outputs nothing to allow ExitPlanMode to proceed
  *
  * @param {object} input - Parsed JSON from Claude Code stdin
  * @param {string} input.session_id - The current session ID
@@ -66,6 +66,14 @@ export async function processHook(input, deps) {
 
     // 7.5. If review is LGTM, allow ExitPlanMode immediately
     if (result.trim().toLowerCase().startsWith("lgtm")) {
+      const output = JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "allow",
+          permissionDecisionReason: `claude-plan-reviewer: LGTM\n\n${result}`,
+        },
+      });
+      deps.stdout.write(output + "\n");
       deps.stderr.write(`[cpr] reviewer returned LGTM, allowing ExitPlanMode\n`);
       return;
     }

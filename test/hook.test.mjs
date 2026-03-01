@@ -26,10 +26,10 @@
  * - Displays diff when maxReviews reached and plan exists
  * - Does not display diff when maxReviews reached but no original plan saved
  * - findLatestPlan is called before maxReviews check
- * - Produces no stdout when review result is LGTM
+ * - Outputs allow decision when review result is LGTM
  * - Does not increment review count when review result is LGTM
- * - Produces no stdout when review result starts with LGTM followed by explanation
- * - Produces no stdout when review result is lowercase lgtm
+ * - Outputs allow decision when review starts with LGTM followed by explanation
+ * - Outputs allow decision when review result is lowercase lgtm
  * - Outputs deny decision when review result does not start with LGTM
  */
 
@@ -466,14 +466,25 @@ describe('processHook', () => {
 
   // ==================== LGTM handling ====================
 
-  it('produces no stdout when review result is LGTM', async () => {
+  it('outputs allow decision when review result is LGTM', async () => {
     const deps = createDeps({
       getAdapter: () => ({ review: async () => 'LGTM' }),
     });
 
     await processHook(HOOK_INPUT, deps);
 
-    assert.deepEqual(deps.stdoutChunks, [], 'stdout should be empty when review is LGTM');
+    assert.ok(deps.stdoutChunks.length > 0, 'stdout should not be empty when review is LGTM');
+    const parsed = JSON.parse(deps.stdoutChunks.join('').trim());
+    assert.equal(parsed.hookSpecificOutput.hookEventName, 'PreToolUse');
+    assert.equal(parsed.hookSpecificOutput.permissionDecision, 'allow');
+    assert.ok(
+      parsed.hookSpecificOutput.permissionDecisionReason.startsWith('claude-plan-reviewer: LGTM'),
+      `reason should start with "claude-plan-reviewer: LGTM", got: ${parsed.hookSpecificOutput.permissionDecisionReason}`,
+    );
+    assert.ok(
+      parsed.hookSpecificOutput.permissionDecisionReason.includes('LGTM'),
+      `reason should include the review result`,
+    );
   });
 
   it('does not increment review count when review result is LGTM', async () => {
@@ -488,24 +499,32 @@ describe('processHook', () => {
     assert.ok(!incrementCalled, 'incrementReviewCount should not be called when review is LGTM');
   });
 
-  it('produces no stdout when review result starts with LGTM followed by explanation', async () => {
+  it('outputs allow decision when review starts with LGTM followed by explanation', async () => {
     const deps = createDeps({
       getAdapter: () => ({ review: async () => 'LGTM, looks good.' }),
     });
 
     await processHook(HOOK_INPUT, deps);
 
-    assert.deepEqual(deps.stdoutChunks, [], 'stdout should be empty when review starts with LGTM');
+    assert.ok(deps.stdoutChunks.length > 0, 'stdout should not be empty when review starts with LGTM');
+    const parsed = JSON.parse(deps.stdoutChunks.join('').trim());
+    assert.equal(parsed.hookSpecificOutput.permissionDecision, 'allow');
+    assert.ok(
+      parsed.hookSpecificOutput.permissionDecisionReason.includes('LGTM, looks good.'),
+      `reason should include the review result`,
+    );
   });
 
-  it('produces no stdout when review result is lowercase lgtm', async () => {
+  it('outputs allow decision when review result is lowercase lgtm', async () => {
     const deps = createDeps({
       getAdapter: () => ({ review: async () => 'lgtm' }),
     });
 
     await processHook(HOOK_INPUT, deps);
 
-    assert.deepEqual(deps.stdoutChunks, [], 'stdout should be empty when review is lowercase lgtm');
+    assert.ok(deps.stdoutChunks.length > 0, 'stdout should not be empty when review is lowercase lgtm');
+    const parsed = JSON.parse(deps.stdoutChunks.join('').trim());
+    assert.equal(parsed.hookSpecificOutput.permissionDecision, 'allow');
   });
 
   it('outputs deny decision when review result does not start with LGTM', async () => {
