@@ -207,6 +207,7 @@ if (isMain) {
     cleanStaleSessions,
     saveOriginalPlan,
     getOriginalPlan,
+    resetReviewCount,
   } = await import("../src/session.mjs");
   const { computeDiff } = await import("../src/diff.mjs");
   const { findLatestPlan } = await import("../src/plan.mjs");
@@ -241,6 +242,7 @@ if (isMain) {
       loadConfig,
       getReviewCount,
       incrementReviewCount,
+      resetReviewCount,
       cleanStaleSessions,
       saveOriginalPlan,
       getOriginalPlan,

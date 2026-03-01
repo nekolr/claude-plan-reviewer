@@ -45,6 +45,7 @@ export async function processHook(input, deps) {
         }
       }
       deps.stderr.write(`[cpr] maxReviews reached, allowing ExitPlanMode\n`);
+      deps.resetReviewCount(input.session_id);
       return;
     }
 
@@ -75,6 +76,7 @@ export async function processHook(input, deps) {
       });
       deps.stdout.write(output + "\n");
       deps.stderr.write(`[cpr] reviewer returned LGTM, allowing ExitPlanMode\n`);
+      deps.resetReviewCount(input.session_id);
       return;
     }
 

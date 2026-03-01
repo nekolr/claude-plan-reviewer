@@ -113,6 +113,24 @@ export function getOriginalPlan(sessionId, sessionPath = SESSION_PATH) {
 }
 
 /**
+ * Resets the review count for a session to 0 and clears originalPlan.
+ * Preserves lastReview and other fields. No-op if session does not exist.
+ * @param {string} sessionId
+ * @param {string} [sessionPath]
+ */
+export function resetReviewCount(sessionId, sessionPath = SESSION_PATH) {
+  const sessions = readSessions(sessionPath);
+  const existing = sessions[sessionId];
+  if (!existing) return;
+  sessions[sessionId] = {
+    ...existing,
+    count: 0,
+    originalPlan: undefined,
+  };
+  atomicWrite(sessionPath, sessions);
+}
+
+/**
  * Removes session entries older than 24 hours.
  * @param {string} [sessionPath]
  */

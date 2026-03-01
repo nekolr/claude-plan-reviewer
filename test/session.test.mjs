@@ -11,6 +11,7 @@ import {
   cleanStaleSessions,
   saveOriginalPlan,
   getOriginalPlan,
+  resetReviewCount,
 } from '../src/session.mjs';
 
 describe('session', () => {
@@ -286,5 +287,115 @@ describe('getOriginalPlan', () => {
 
     // Assert
     assert.equal(result, planContent);
+  });
+});
+
+// ============================================================
+// resetReviewCount
+// ============================================================
+
+describe('resetReviewCount', () => {
+  let tempDir;
+  let tempSessionPath;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'session-reset-test-'));
+    tempSessionPath = join(tempDir, 'sessions.json');
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('resets count to 0 for existing session', () => {
+    // Arrange: create a session with count:3
+    const data = {
+      'sess-1': { count: 3, lastReview: Date.now() },
+    };
+    writeFileSync(tempSessionPath, JSON.stringify(data));
+
+    // Act
+    resetReviewCount('sess-1', tempSessionPath);
+
+    // Assert
+    const result = JSON.parse(readFileSync(tempSessionPath, 'utf-8'));
+    assert.equal(result['sess-1'].count, 0);
+  });
+
+  it('clears originalPlan', () => {
+    // Arrange: create a session with originalPlan
+    const data = {
+      'sess-1': { count: 2, lastReview: Date.now(), originalPlan: 'some plan' },
+    };
+    writeFileSync(tempSessionPath, JSON.stringify(data));
+
+    // Act
+    resetReviewCount('sess-1', tempSessionPath);
+
+    // Assert: originalPlan should not be in persisted JSON
+    const result = JSON.parse(readFileSync(tempSessionPath, 'utf-8'));
+    assert.equal(
+      result['sess-1'].originalPlan,
+      undefined,
+      'originalPlan should be cleared (undefined) after resetReviewCount',
+    );
+    assert.ok(
+      !('originalPlan' in result['sess-1']),
+      'originalPlan key should not exist in persisted JSON',
+    );
+  });
+
+  it('preserves lastReview and other fields', () => {
+    // Arrange: create a session with lastReview, extra fields
+    const data = {
+      'sess-1': { count: 5, lastReview: 12345, customField: 'preserved' },
+    };
+    writeFileSync(tempSessionPath, JSON.stringify(data));
+
+    // Act
+    resetReviewCount('sess-1', tempSessionPath);
+
+    // Assert: lastReview and customField should be preserved
+    const result = JSON.parse(readFileSync(tempSessionPath, 'utf-8'));
+    assert.equal(result['sess-1'].lastReview, 12345);
+    assert.equal(result['sess-1'].customField, 'preserved');
+    assert.equal(result['sess-1'].count, 0);
+  });
+
+  it('is a no-op when session does not exist', () => {
+    // Arrange: create a session file with a different session
+    const data = {
+      'other-sess': { count: 1, lastReview: Date.now() },
+    };
+    writeFileSync(tempSessionPath, JSON.stringify(data));
+    const before = readFileSync(tempSessionPath, 'utf-8');
+
+    // Act: reset a non-existent session
+    resetReviewCount('nonexistent-session', tempSessionPath);
+
+    // Assert: file content should be unchanged
+    const after = readFileSync(tempSessionPath, 'utf-8');
+    assert.deepEqual(JSON.parse(after), JSON.parse(before));
+  });
+
+  it('preserves other sessions', () => {
+    // Arrange: create two sessions
+    const data = {
+      'sess-a': { count: 3, lastReview: 111, originalPlan: 'plan A' },
+      'sess-b': { count: 7, lastReview: 222, originalPlan: 'plan B' },
+    };
+    writeFileSync(tempSessionPath, JSON.stringify(data));
+
+    // Act: reset only sess-a
+    resetReviewCount('sess-a', tempSessionPath);
+
+    // Assert: sess-b should be completely untouched
+    const result = JSON.parse(readFileSync(tempSessionPath, 'utf-8'));
+    assert.equal(result['sess-b'].count, 7);
+    assert.equal(result['sess-b'].lastReview, 222);
+    assert.equal(result['sess-b'].originalPlan, 'plan B');
+
+    // sess-a should be reset
+    assert.equal(result['sess-a'].count, 0);
   });
 });

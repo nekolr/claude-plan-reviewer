@@ -62,6 +62,7 @@ function createDeps(overrides = {}) {
     getAdapter: () => ({ review: async (prompt, options, deps) => '1. Fix error handling\n2. Add tests' }),
     saveOriginalPlan: () => {},
     getOriginalPlan: () => null,
+    resetReviewCount: () => {},
     computeDiff: () => '',
     stdout: { write: (data) => stdoutChunks.push(data) },
     stderr: { write: (data) => stderrChunks.push(data) },
@@ -537,5 +538,88 @@ describe('processHook', () => {
     const output = deps.stdoutChunks.join('');
     const parsed = JSON.parse(output.trim());
     assert.equal(parsed.hookSpecificOutput.permissionDecision, 'deny');
+  });
+
+  // ==================== resetReviewCount on cycle completion ====================
+
+  describe('resetReviewCount on cycle completion', () => {
+    it('calls resetReviewCount when review is LGTM', async () => {
+      let resetCalledWith = null;
+      const deps = createDeps({
+        getAdapter: () => ({ review: async () => 'LGTM' }),
+        resetReviewCount: (sessionId) => { resetCalledWith = sessionId; },
+      });
+
+      await processHook(HOOK_INPUT, deps);
+
+      assert.equal(
+        resetCalledWith,
+        'abc-123',
+        'resetReviewCount should be called with session_id on LGTM',
+      );
+    });
+
+    it('calls resetReviewCount when maxReviews reached', async () => {
+      let resetCalledWith = null;
+      const deps = createDeps({
+        getReviewCount: () => 2,
+        resetReviewCount: (sessionId) => { resetCalledWith = sessionId; },
+      });
+
+      await processHook(HOOK_INPUT, deps);
+
+      assert.equal(
+        resetCalledWith,
+        'abc-123',
+        'resetReviewCount should be called with session_id when maxReviews reached',
+      );
+    });
+
+    it('does NOT call resetReviewCount on deny (normal review)', async () => {
+      let resetCalled = false;
+      const deps = createDeps({
+        getAdapter: () => ({ review: async () => '1. Fix error handling in step 3.' }),
+        resetReviewCount: () => { resetCalled = true; },
+      });
+
+      await processHook(HOOK_INPUT, deps);
+
+      assert.ok(
+        !resetCalled,
+        'resetReviewCount should NOT be called when review is a deny (normal review feedback)',
+      );
+    });
+
+    it('does NOT call resetReviewCount when no plan found', async () => {
+      let resetCalled = false;
+      const deps = createDeps({
+        findLatestPlan: () => null,
+        resetReviewCount: () => { resetCalled = true; },
+      });
+
+      await processHook(HOOK_INPUT, deps);
+
+      assert.ok(
+        !resetCalled,
+        'resetReviewCount should NOT be called when no plan is found',
+      );
+    });
+
+    it('does NOT call resetReviewCount on adapter error', async () => {
+      let resetCalled = false;
+      const deps = createDeps({
+        getAdapter: () => ({
+          review: async () => { throw new Error('API timeout'); },
+        }),
+        resetReviewCount: () => { resetCalled = true; },
+      });
+
+      await processHook(HOOK_INPUT, deps);
+
+      assert.ok(
+        !resetCalled,
+        'resetReviewCount should NOT be called when adapter throws an error',
+      );
+    });
   });
 });
