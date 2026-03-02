@@ -89,6 +89,7 @@ describe("codex adapter", () => {
       "--sandbox",
       "read-only",
       "--full-auto",
+      "--skip-git-repo-check",
     ]);
   });
 
@@ -118,6 +119,7 @@ describe("codex adapter", () => {
       "--sandbox",
       "read-only",
       "--full-auto",
+      "--skip-git-repo-check",
       "--model",
       "o3",
     ]);

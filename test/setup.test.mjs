@@ -208,6 +208,70 @@ describe("registerHook", () => {
     assert.ok(!("Stop" in settings.hooks), "Stop key should be deleted when empty");
     assert.ok(Array.isArray(settings.hooks.PreToolUse), "PreToolUse should be added");
   });
+
+  it("should warn when non-CPR ExitPlanMode hooks exist", () => {
+    const nonCprExitPlanModeHook = {
+      matcher: "ExitPlanMode",
+      hooks: [{ type: "command", command: "some-other-tool review" }],
+    };
+    const existingSettings = {
+      hooks: {
+        PreToolUse: [nonCprExitPlanModeHook],
+      },
+    };
+    fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
+
+    const messages = [];
+    const mockStderr = { write: (msg) => messages.push(msg) };
+
+    registerHook(settingsPath, hookCommand, { stderr: mockStderr });
+
+    assert.ok(
+      messages.some((msg) => msg.includes("existing ExitPlanMode hook")),
+      `Expected warning about existing ExitPlanMode hook, got: ${JSON.stringify(messages)}`
+    );
+  });
+
+  it("should preserve non-CPR ExitPlanMode hooks (not delete them)", () => {
+    const nonCprExitPlanModeHook = {
+      matcher: "ExitPlanMode",
+      hooks: [{ type: "command", command: "some-other-tool review" }],
+    };
+    const existingSettings = {
+      hooks: {
+        PreToolUse: [nonCprExitPlanModeHook],
+      },
+    };
+    fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
+
+    registerHook(settingsPath, hookCommand, { stderr: { write: () => {} } });
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    const entries = settings.hooks.PreToolUse;
+    assert.equal(entries.length, 2, "Should have both the non-CPR hook and the CPR hook");
+    assert.deepEqual(entries[0], nonCprExitPlanModeHook, "Non-CPR ExitPlanMode hook should be preserved");
+    assert.deepEqual(entries[1], {
+      matcher: "ExitPlanMode",
+      hooks: [{ type: "command", command: hookCommand }],
+    }, "CPR hook should be added");
+  });
+
+  it("should not warn when no non-CPR ExitPlanMode hooks exist", () => {
+    const bashHook = { matcher: "Bash", hooks: [{ type: "command", command: "lint-check" }] };
+    const existingSettings = {
+      hooks: {
+        PreToolUse: [bashHook],
+      },
+    };
+    fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2));
+
+    const messages = [];
+    const mockStderr = { write: (msg) => messages.push(msg) };
+
+    registerHook(settingsPath, hookCommand, { stderr: mockStderr });
+
+    assert.equal(messages.length, 0, `Expected no warnings, but got: ${JSON.stringify(messages)}`);
+  });
 });
 
 // ==================== unregisterHook ====================

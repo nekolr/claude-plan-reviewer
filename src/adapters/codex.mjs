@@ -17,7 +17,7 @@ export async function review(prompt, options = {}, deps = {}) {
   const { spawn = defaultSpawn, onData = () => {} } = deps;
   const { model = "", sandbox = "read-only", timeout = 120000 } = options;
 
-  const args = ["exec", prompt, "--sandbox", sandbox, "--full-auto"];
+  const args = ["exec", prompt, "--sandbox", sandbox, "--full-auto", "--skip-git-repo-check"];
   if (model) {
     args.push("--model", model);
   }

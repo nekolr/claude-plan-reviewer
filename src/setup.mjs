@@ -27,7 +27,7 @@ export function getHookCommand() {
  * Creates the file if it does not exist. Preserves all existing settings and hooks.
  * Also removes any leftover Stop hook entries from previous versions.
  */
-export function registerHook(settingsPath, hookCommand) {
+export function registerHook(settingsPath, hookCommand, deps = {}) {
   let settings = {};
 
   try {
@@ -59,6 +59,18 @@ export function registerHook(settingsPath, hookCommand) {
     settings.hooks.PreToolUse[existingIndex] = hookEntry;
   } else {
     settings.hooks.PreToolUse.push(hookEntry);
+  }
+
+  // --- Warn about non-CPR ExitPlanMode hooks ---
+  const hasNonCprExitPlanMode = settings.hooks.PreToolUse.some(
+    (entry) => entry.matcher === "ExitPlanMode" && !isCprEntry(entry)
+  );
+  if (hasNonCprExitPlanMode) {
+    const stderr = deps.stderr || process.stderr;
+    stderr.write(
+      "Warning: Found existing ExitPlanMode hook(s) not managed by claude-plan-reviewer.\n" +
+      "  This may cause conflicts. Consider removing them from ~/.claude/settings.json\n"
+    );
   }
 
   // --- Clean up legacy Stop hook entries ---

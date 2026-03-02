@@ -28,7 +28,7 @@ export async function main(args, deps) {
   switch (command) {
     case "setup": {
       try {
-        deps.registerHook(deps.settingsPath, deps.getHookCommand());
+        deps.registerHook(deps.settingsPath, deps.getHookCommand(), { stderr: deps.stderr });
         deps.stdout.write("PreToolUse hook set up successfully.\n");
         deps.stdout.write(`Settings: ${deps.settingsPath}\n`);
       } catch (err) {
