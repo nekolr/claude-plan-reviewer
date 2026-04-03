@@ -8,6 +8,7 @@ export const DEFAULT_CONFIG = {
   adapter: "codex",
   maxReviews: 2,
   prompt: "",
+  projectPath: "",
   codex: {
     model: "",
     sandbox: "read-only",
@@ -42,6 +43,11 @@ export function loadConfig(configPath = CONFIG_PATH) {
     // Validate prompt: must be string
     if (typeof config.prompt !== "string") {
       config.prompt = DEFAULT_CONFIG.prompt;
+    }
+
+    // Validate projectPath: must be string
+    if (typeof config.projectPath !== "string") {
+      config.projectPath = DEFAULT_CONFIG.projectPath;
     }
 
     // Validate codex: must be non-null object, deep-merge with defaults

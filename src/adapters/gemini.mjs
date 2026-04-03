@@ -6,12 +6,13 @@ import { spawn as defaultSpawn } from "node:child_process";
  * @param {string} prompt - The review prompt to send via stdin.
  * @param {object} [options={}] - Configuration options.
  * @param {string} [options.model=""] - Gemini model to use (empty = default).
+ * @param {string} [options.projectPath=""] - Project directory to review against.
  * @param {number} [options.timeout=120000] - Timeout in milliseconds.
  * @param {object} [deps={ spawn: defaultSpawn }] - Dependency injection for testing.
  * @returns {Promise<string>} The review text (trimmed stdout).
  */
 export async function review(prompt, options = {}, deps = {}) {
-  const { model = "", timeout = 120000 } = options;
+  const { model = "", timeout = 120000, projectPath = "" } = options;
   const { spawn = defaultSpawn, onData = () => {} } = deps;
 
   const args = [];
@@ -23,7 +24,10 @@ export async function review(prompt, options = {}, deps = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
-    const child = spawn("gemini", args, { signal: controller.signal });
+    const child = spawn("gemini", args, {
+      signal: controller.signal,
+      ...(projectPath ? { cwd: projectPath } : {}),
+    });
 
     let stdout = "";
     let stderr = "";

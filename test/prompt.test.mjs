@@ -95,4 +95,24 @@ describe("buildPrompt", () => {
       "Output should contain the custom prompt text",
     );
   });
+
+  it("tells the reviewer to inspect the project before judging the plan", () => {
+    const result = buildPrompt("my plan");
+    assert.ok(
+      result.includes("inspect the relevant project files"),
+      "Output should instruct the reviewer to inspect the codebase first",
+    );
+  });
+
+  it("includes the project path when project context is provided", () => {
+    const result = buildPrompt("my plan", "", { projectPath: "/repo/path" });
+    assert.ok(
+      result.includes("## Project Context"),
+      "Output should include the project context section",
+    );
+    assert.ok(
+      result.includes("/repo/path"),
+      "Output should include the provided project path",
+    );
+  });
 });

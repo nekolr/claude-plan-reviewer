@@ -115,6 +115,15 @@ describe("gemini adapter", () => {
     assert.deepEqual(args, []);
   });
 
+  it("sets spawn cwd when projectPath is provided", async () => {
+    const mockSpawn = createMockSpawn({ stdout: "ok", code: 0 });
+
+    await review("review", { projectPath: "/repo/path" }, { spawn: mockSpawn });
+
+    const { options } = mockSpawn.calls[0];
+    assert.equal(options.cwd, "/repo/path");
+  });
+
   // ==================== Writes prompt to stdin ====================
 
   it("writes prompt to child's stdin", async () => {

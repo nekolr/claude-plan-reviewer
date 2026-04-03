@@ -55,6 +55,9 @@ claude-plan-reviewer config set adapter gemini
 # Change max reviews per session
 claude-plan-reviewer config set maxReviews 3
 
+# Pin the project directory that the reviewer should inspect
+claude-plan-reviewer config set projectPath /path/to/repo
+
 # Set Codex model
 claude-plan-reviewer config set codex.model o3
 
@@ -71,9 +74,11 @@ claude-plan-reviewer config set gemini.model gemini-2.5-pro
   "adapter": "codex",
   "maxReviews": 2,
   "prompt": "",
+  "projectPath": "",
   "codex": {
     "model": "",
-    "sandbox": "read-only"
+    "sandbox": "read-only",
+    "timeout": 120000
   },
   "gemini": {
     "model": ""
@@ -86,8 +91,10 @@ claude-plan-reviewer config set gemini.model gemini-2.5-pro
 | `adapter` | Reviewer to use (`codex` or `gemini`) | `codex` |
 | `maxReviews` | Max reviews per session | `2` |
 | `prompt` | Additional review instructions | `""` |
+| `projectPath` | Project root to inspect before reviewing; empty means use the current working directory | `""` |
 | `codex.model` | Codex CLI model | `""` (default) |
 | `codex.sandbox` | Codex sandbox mode | `read-only` |
+| `codex.timeout` | Codex review timeout in milliseconds | `120000` |
 | `gemini.model` | Gemini CLI model | `""` (default) |
 
 ## CLI Commands
@@ -106,6 +113,8 @@ claude-plan-reviewer config set gemini.model gemini-2.5-pro
 ```bash
 claude-plan-reviewer review ~/.claude/plans/my-plan.md
 ```
+
+If `projectPath` is empty, manual review uses the directory you run the command from as the project root. Codex uses `codex -C <projectPath> ...`. Gemini does not expose a separate working-directory flag, so the reviewer process is started with its current working directory set to `projectPath`, which is equivalent to `cd` into that directory before running `gemini`.
 
 ## Prerequisites
 

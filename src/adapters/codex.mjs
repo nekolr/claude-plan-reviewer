@@ -21,6 +21,7 @@ function getSpawnSpec(args, platform = process.platform) {
  * @param {object} [options] - Options for the review.
  * @param {string} [options.model=""] - Codex model to use (empty = default).
  * @param {string} [options.sandbox="read-only"] - Codex sandbox mode.
+ * @param {string} [options.projectPath=""] - Project directory to review against.
  * @param {number} [options.timeout=120000] - Timeout in ms.
  * @param {object} [deps] - Dependency injection for testing.
  * @param {Function} [deps.spawn] - The spawn function to use.
@@ -29,9 +30,10 @@ function getSpawnSpec(args, platform = process.platform) {
  */
 export async function review(prompt, options = {}, deps = {}) {
   const { spawn = defaultSpawn, onData = () => {}, platform = process.platform } = deps;
-  const { model = "", sandbox = "read-only", timeout = 120000 } = options;
+  const { model = "", sandbox = "read-only", timeout = 120000, projectPath = "" } = options;
   const useStdinPrompt = platform === "win32";
   const args = [
+    ...(projectPath ? ["--cd", projectPath] : []),
     "exec",
     ...(useStdinPrompt ? [] : [prompt]),
     "--sandbox",
@@ -49,6 +51,7 @@ export async function review(prompt, options = {}, deps = {}) {
     const timer = setTimeout(() => controller.abort(), timeout);
     const child = spawn(command, spawnArgs, {
       signal: controller.signal,
+      ...(projectPath ? { cwd: projectPath } : {}),
     });
     if (useStdinPrompt) {
       child.stdin?.write(prompt);

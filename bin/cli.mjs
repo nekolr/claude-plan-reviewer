@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const VALID_TOP_LEVEL_KEYS = new Set(["adapter", "maxReviews", "prompt"]);
+const VALID_TOP_LEVEL_KEYS = new Set(["adapter", "maxReviews", "prompt", "projectPath"]);
 const VALID_NESTED_KEYS = Object.create(null);
 VALID_NESTED_KEYS.codex = new Set(["model", "sandbox", "timeout"]);
 VALID_NESTED_KEYS.gemini = new Set(["model"]);
@@ -118,11 +118,15 @@ export async function main(args, deps) {
         break;
       }
       const config = deps.loadConfig();
-      const prompt = deps.buildPrompt(content, config.prompt);
+      const projectPath = config.projectPath || deps.cwd || process.cwd();
+      const prompt = deps.buildPrompt(content, config.prompt, { projectPath });
       const adapter = deps.getAdapter(config.adapter);
       try {
         deps.stdout.write(`Reviewing with ${config.adapter}...\n`);
-        const result = await adapter.review(prompt, config[config.adapter]);
+        if (projectPath) {
+          deps.stdout.write(`Project: ${projectPath}\n`);
+        }
+        const result = await adapter.review(prompt, { ...config[config.adapter], projectPath });
         deps.stdout.write("\n" + result + "\n");
       } catch (err) {
         deps.stderr.write(`Error: Review failed: ${err.message}\n`);
@@ -238,6 +242,7 @@ if (isMain) {
     stderr: process.stderr,
     stdin: stdinData,
     exit: process.exit,
+    cwd: process.cwd(),
     hookDeps: {
       loadConfig,
       getReviewCount,
@@ -252,6 +257,7 @@ if (isMain) {
       getAdapter,
       stdout: process.stdout,
       stderr: process.stderr,
+      cwd: process.cwd(),
     },
   };
 

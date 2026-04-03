@@ -66,6 +66,10 @@ describe("DEFAULT_CONFIG", () => {
     assert.equal(DEFAULT_CONFIG.prompt, "");
   });
 
+  it("should have projectPath as empty string", () => {
+    assert.equal(DEFAULT_CONFIG.projectPath, "");
+  });
+
   it("should have codex as object with model and sandbox", () => {
     assert.equal(typeof DEFAULT_CONFIG.codex, "object");
     assert.ok(DEFAULT_CONFIG.codex !== null, "codex should not be null");
@@ -108,6 +112,7 @@ describe("loadConfig", () => {
       adapter: "codex",
       maxReviews: 2,
       prompt: "",
+      projectPath: "",
       codex: {
         model: "",
         sandbox: "read-only",
@@ -131,6 +136,7 @@ describe("loadConfig", () => {
 
     // Default values preserved
     assert.equal(config.maxReviews, 2);
+    assert.equal(config.projectPath, "");
     assert.deepEqual(config.codex, { model: "", sandbox: "read-only", timeout: 120000 });
     assert.deepEqual(config.gemini, { model: "" });
   });
@@ -162,6 +168,7 @@ describe("loadConfig", () => {
       adapter: "gemini",
       maxReviews: 5,
       prompt: "Review carefully.",
+      projectPath: "/repo/path",
       codex: {
         model: "o3",
         sandbox: "network",
@@ -207,6 +214,12 @@ describe("loadConfig", () => {
     fs.writeFileSync(tmpConfigPath, JSON.stringify({ prompt: 42 }));
     const config = loadConfig(tmpConfigPath);
     assert.equal(config.prompt, DEFAULT_CONFIG.prompt);
+  });
+
+  it("should fall back to default projectPath when projectPath is not a string", () => {
+    fs.writeFileSync(tmpConfigPath, JSON.stringify({ projectPath: 42 }));
+    const config = loadConfig(tmpConfigPath);
+    assert.equal(config.projectPath, DEFAULT_CONFIG.projectPath);
   });
 
   it("should fall back to default codex when codex is not an object", () => {
@@ -280,6 +293,7 @@ describe("saveConfig", () => {
       adapter: "codex",
       maxReviews: 3,
       prompt: "save-test",
+      projectPath: "/repo/path",
       codex: { model: "", sandbox: "read-only", timeout: 120000 },
       gemini: { model: "" },
     };
@@ -329,6 +343,7 @@ describe("saveConfig", () => {
       adapter: "gemini",
       maxReviews: 4,
       prompt: "Be thorough.",
+      projectPath: "/repo/path",
       codex: {
         model: "o3",
         sandbox: "network",

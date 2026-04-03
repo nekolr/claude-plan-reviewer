@@ -52,6 +52,7 @@ function createDeps(overrides = {}) {
       adapter: 'codex',
       maxReviews: 2,
       prompt: '',
+      projectPath: '',
       codex: { model: '', sandbox: 'read-only', timeout: 120000 },
     }),
     getReviewCount: () => 0,
@@ -66,6 +67,7 @@ function createDeps(overrides = {}) {
     computeDiff: () => '',
     stdout: { write: (data) => stdoutChunks.push(data) },
     stderr: { write: (data) => stderrChunks.push(data) },
+    cwd: '/tmp/project',
     stdoutChunks,
     stderrChunks,
     ...overrides,
@@ -116,8 +118,8 @@ describe('processHook', () => {
   it('calls buildPrompt with plan content and config prompt', async () => {
     let buildPromptArgs = null;
     const deps = createDeps({
-      buildPrompt: (content, custom) => {
-        buildPromptArgs = { content, custom };
+      buildPrompt: (content, custom, context) => {
+        buildPromptArgs = { content, custom, context };
         return `Review: ${content}`;
       },
     });
@@ -127,6 +129,7 @@ describe('processHook', () => {
     assert.notEqual(buildPromptArgs, null, 'buildPrompt should have been called');
     assert.equal(buildPromptArgs.content, '# Plan\nDo stuff');
     assert.equal(buildPromptArgs.custom, '');
+    assert.deepEqual(buildPromptArgs.context, { projectPath: '/tmp/project' });
   });
 
   it('calls getAdapter with config.adapter name', async () => {
@@ -158,7 +161,35 @@ describe('processHook', () => {
 
     assert.notEqual(reviewArgs, null, 'adapter.review should have been called');
     assert.equal(reviewArgs.prompt, 'Review: # Plan\nDo stuff');
-    assert.deepEqual(reviewArgs.options, { model: '', sandbox: 'read-only', timeout: 120000 });
+    assert.deepEqual(reviewArgs.options, {
+      model: '',
+      sandbox: 'read-only',
+      timeout: 120000,
+      projectPath: '/tmp/project',
+    });
+  });
+
+  it('prefers config.projectPath over cwd when provided', async () => {
+    let reviewArgs = null;
+    const deps = createDeps({
+      loadConfig: () => ({
+        adapter: 'codex',
+        maxReviews: 2,
+        prompt: '',
+        projectPath: '/configured/repo',
+        codex: { model: '', sandbox: 'read-only', timeout: 120000 },
+      }),
+      getAdapter: () => ({
+        review: async (prompt, options) => {
+          reviewArgs = { prompt, options };
+          return 'LGTM';
+        },
+      }),
+    });
+
+    await processHook(HOOK_INPUT, deps);
+
+    assert.equal(reviewArgs.options.projectPath, '/configured/repo');
   });
 
   it('increments review count after successful review', async () => {
